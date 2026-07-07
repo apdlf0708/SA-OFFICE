@@ -2,8 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 
-export const dynamic = "force-dynamic";
-
 // GET /api/documents?userId=xxx&filter=all|기안함|결재함|진행중|완료|반려
 export async function GET(req: NextRequest) {
   const userId = req.nextUrl.searchParams.get("userId");

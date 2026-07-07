@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
-export const dynamic = "force-dynamic";
-
 // POST /api/documents/:id/decide  { userId, decision: 'approve' | 'reject', comment? }
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   const documentId = params.id;
