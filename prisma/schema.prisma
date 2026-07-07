@@ -1,0 +1,63 @@
+// 전자결재 시스템 데이터 모델
+// 개발 편의를 위해 기본은 SQLite로 설정했습니다.
+// 실제 서비스로 전환할 때는 datasource를 postgresql로 바꾸고 DATABASE_URL만 교체하면 됩니다.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  name      String
+  email     String   @unique
+  role      String // 예: 팀장, 부서장, 대표, 사원
+  createdAt DateTime @default(now())
+
+  requestedDocuments Document[]     @relation("Requester")
+  approvalSteps      ApprovalStep[]
+}
+
+enum DocumentStatus {
+  PENDING // 결재 진행중
+  APPROVED // 최종 승인 완료
+  REJECTED // 반려됨
+}
+
+model Document {
+  id          String         @id @default(cuid())
+  title       String
+  type        String // 예: 휴가, 지출결의, 구매요청, 재택근무
+  content     String
+  status      DocumentStatus @default(PENDING)
+  requesterId String
+  requester   User           @relation("Requester", fields: [requesterId], references: [id])
+  steps       ApprovalStep[]
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+}
+
+enum StepStatus {
+  WAITING // 아직 내 차례가 아님
+  PENDING // 지금 내가 결재해야 함
+  APPROVED
+  REJECTED
+}
+
+model ApprovalStep {
+  id         String     @id @default(cuid())
+  documentId String
+  document   Document   @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  approverId String
+  approver   User       @relation(fields: [approverId], references: [id])
+  order      Int // 결재 순서 (1부터 시작)
+  status     StepStatus @default(WAITING)
+  comment    String?
+  decidedAt  DateTime?
+
+  @@unique([documentId, order])
+}
