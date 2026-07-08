@@ -1,21 +1,39 @@
 import { PrismaClient } from "@prisma/client";
+import bcrypt from "bcryptjs";
 
 const prisma = new PrismaClient();
 
 async function main() {
+  await prisma.notice.deleteMany();
   await prisma.approvalStep.deleteMany();
   await prisma.document.deleteMany();
   await prisma.user.deleteMany();
 
+  const defaultPassword = await bcrypt.hash("1234", 10);
+  const adminPassword = await bcrypt.hash("123123", 10);
+
   const [minsu, jihyeon, sooyoung, youngho, haneul] = await Promise.all([
-    prisma.user.create({ data: { name: "김민수", email: "minsu@company.com", role: "사원" } }),
-    prisma.user.create({ data: { name: "박지현", email: "jihyeon@company.com", role: "팀장" } }),
-    prisma.user.create({ data: { name: "이수영", email: "sooyoung@company.com", role: "부서장" } }),
-    prisma.user.create({ data: { name: "최영호", email: "youngho@company.com", role: "대표" } }),
-    prisma.user.create({ data: { name: "정하늘", email: "haneul@company.com", role: "사원" } }),
+    prisma.user.create({
+      data: { name: "김민수", email: "minsu@company.com", username: "minsu", password: defaultPassword, role: "사원", permission: "USER" },
+    }),
+    prisma.user.create({
+      data: { name: "박지현", email: "jihyeon@company.com", username: "jihyeon", password: defaultPassword, role: "팀장", permission: "USER" },
+    }),
+    prisma.user.create({
+      data: { name: "이수영", email: "sooyoung@company.com", username: "sooyoung", password: defaultPassword, role: "부서장", permission: "USER" },
+    }),
+    prisma.user.create({
+      data: { name: "최영호", email: "youngho@company.com", username: "youngho", password: defaultPassword, role: "대표", permission: "MANAGER" },
+    }),
+    prisma.user.create({
+      data: { name: "정하늘", email: "haneul@company.com", username: "haneul", password: defaultPassword, role: "사원", permission: "USER" },
+    }),
   ]);
 
-  // 1. 진행중 문서 (팀장 승인, 부서장 대기중)
+  const admin = await prisma.user.create({
+    data: { name: "관리자", email: "admin@company.com", username: "admin", password: adminPassword, role: "시스템관리자", permission: "ADMIN" },
+  });
+
   await prisma.document.create({
     data: {
       title: "연차 휴가 신청서",
@@ -33,7 +51,6 @@ async function main() {
     },
   });
 
-  // 2. 반려된 문서
   await prisma.document.create({
     data: {
       title: "출장비 지출결의서",
@@ -50,7 +67,6 @@ async function main() {
     },
   });
 
-  // 3. 첫 결재 대기중인 문서
   await prisma.document.create({
     data: {
       title: "노트북 구매요청서",
@@ -58,13 +74,10 @@ async function main() {
       content: "업무용 노트북 1대 구매를 요청드립니다. 예상 금액 1,800,000원.",
       status: "PENDING",
       requesterId: minsu.id,
-      steps: {
-        create: [{ approverId: jihyeon.id, order: 1, status: "PENDING" }],
-      },
+      steps: { create: [{ approverId: jihyeon.id, order: 1, status: "PENDING" }] },
     },
   });
 
-  // 4. 완료된 문서
   await prisma.document.create({
     data: {
       title: "재택근무 신청서",
@@ -82,8 +95,21 @@ async function main() {
     },
   });
 
+  await prisma.notice.create({
+    data: {
+      title: "SA-OFFICE 오픈 안내",
+      content: "사내 업무 시스템 SA-OFFICE가 오픈되었습니다. 전자결재, 캘린더 기능을 이용해보세요.",
+      authorId: admin.id,
+    },
+  });
+
   console.log("시드 데이터 생성 완료");
-  console.log("데모 계정:", [minsu, jihyeon, sooyoung, youngho, haneul].map((u) => `${u.name}(${u.role})`).join(", "));
+  console.log("로그인 계정 (비밀번호: 사원/팀장/부서장/대표/사원은 1234, admin은 123123):");
+  console.log(
+    [minsu, jihyeon, sooyoung, youngho, haneul]
+      .map((u) => `${u.username} (${u.name}/${u.role}/${u.permission})`)
+      .join(", ") + `, admin (관리자/시스템관리자/ADMIN)`
+  );
 }
 
 main()

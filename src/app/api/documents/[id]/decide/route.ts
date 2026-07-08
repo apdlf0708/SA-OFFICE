@@ -1,15 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getSessionUser } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
-// POST /api/documents/:id/decide  { userId, decision: 'approve' | 'reject', comment? }
+// POST /api/documents/:id/decide  { decision: 'approve' | 'reject', comment? }
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
-  const documentId = params.id;
-  const { userId, decision, comment } = await req.json();
+  const me = getSessionUser();
+  if (!me) return NextResponse.json({ error: "로그인이 필요합니다." }, { status: 401 });
 
-  if (!userId || !["approve", "reject"].includes(decision)) {
-    return NextResponse.json({ error: "userId와 decision(approve|reject)이 필요합니다." }, { status: 400 });
+  const documentId = params.id;
+  const { decision, comment } = await req.json();
+  const userId = me.id;
+
+  if (!["approve", "reject"].includes(decision)) {
+    return NextResponse.json({ error: "decision(approve|reject)이 필요합니다." }, { status: 400 });
   }
 
   const myStep = await prisma.approvalStep.findFirst({
@@ -21,7 +26,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   }
 
   if (decision === "reject") {
-    const [, document] = await prisma.$transaction([
+    await prisma.$transaction([
       prisma.approvalStep.update({
         where: { id: myStep.id },
         data: { status: "REJECTED", comment, decidedAt: new Date() },
@@ -31,7 +36,17 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         data: { status: "REJECTED" },
       }),
     ]);
-    return NextResponse.json(document);
+    const rejected = await prisma.document.findUnique({
+      where: { id: documentId },
+      include: {
+        steps: {
+          include: { approver: { select: { id: true, name: true, email: true, role: true } } },
+          orderBy: { order: "asc" },
+        },
+        requester: { select: { id: true, name: true, email: true, role: true } },
+      },
+    });
+    return NextResponse.json(rejected);
   }
 
   // 승인 처리: 다음 순서가 있으면 그 사람에게 PENDING 넘기고, 없으면 문서 최종 승인
@@ -66,7 +81,13 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
   const document = await prisma.document.findUnique({
     where: { id: documentId },
-    include: { steps: { include: { approver: true }, orderBy: { order: "asc" } }, requester: true },
+    include: {
+      steps: {
+        include: { approver: { select: { id: true, name: true, email: true, role: true } } },
+        orderBy: { order: "asc" },
+      },
+      requester: { select: { id: true, name: true, email: true, role: true } },
+    },
   });
 
   return NextResponse.json(document);

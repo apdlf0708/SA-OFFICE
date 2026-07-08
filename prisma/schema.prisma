@@ -1,6 +1,5 @@
 // 전자결재 시스템 데이터 모델
-// 개발 편의를 위해 기본은 SQLite로 설정했습니다.
-// 실제 서비스로 전환할 때는 datasource를 postgresql로 바꾸고 DATABASE_URL만 교체하면 됩니다.
+// PostgreSQL 사용 (SQLite는 enum을 지원하지 않아 배포 시 에러가 났었죠 - 이제 로컬/배포 모두 Postgres로 통일합니다)
 
 generator client {
   provider = "prisma-client-js"
@@ -11,15 +10,34 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum Permission {
+  ADMIN // 모든 기능
+  MANAGER // 관리자: 권한 부여, 공지사항 작성
+  USER // 기본값
+}
+
 model User {
-  id        String   @id @default(cuid())
+  id        String     @id @default(cuid())
   name      String
-  email     String   @unique
-  role      String // 예: 팀장, 부서장, 대표, 사원
-  createdAt DateTime @default(now())
+  email     String     @unique
+  username  String     @unique // 로그인 아이디
+  password  String // bcrypt 해시
+  role      String // 예: 팀장, 부서장, 대표, 사원 (직급)
+  permission Permission @default(USER) // 사용자 / 관리자 / admin
+  createdAt DateTime   @default(now())
 
   requestedDocuments Document[]     @relation("Requester")
   approvalSteps      ApprovalStep[]
+  notices            Notice[]
+}
+
+model Notice {
+  id        String   @id @default(cuid())
+  title     String
+  content   String
+  authorId  String
+  author    User     @relation(fields: [authorId], references: [id])
+  createdAt DateTime @default(now())
 }
 
 enum DocumentStatus {

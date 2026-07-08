@@ -24,6 +24,18 @@ export type Document = {
   steps: ApprovalStep[];
 };
 
+export type Permission = "ADMIN" | "MANAGER" | "USER";
+
+export type AdminUser = {
+  id: string;
+  name: string;
+  email: string;
+  username: string;
+  role: string;
+  permission: Permission;
+  createdAt: string;
+};
+
 export const FILTERS = [
   { key: "all", label: "전체" },
   { key: "기안함", label: "기안함" },

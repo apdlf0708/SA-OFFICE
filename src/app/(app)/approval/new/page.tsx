@@ -9,7 +9,7 @@ const DOC_TYPES = ["인사", "회계", "총무", "구매", "기타"];
 export default function NewDocument() {
   const router = useRouter();
   const [users, setUsers] = useState<User[]>([]);
-  const [requesterId, setRequesterId] = useState("");
+  const [me, setMe] = useState<{ id: string; name: string; role: string } | null>(null);
   const [title, setTitle] = useState("");
   const [type, setType] = useState(DOC_TYPES[0]);
   const [content, setContent] = useState("");
@@ -19,11 +19,10 @@ export default function NewDocument() {
   useEffect(() => {
     fetch("/api/users")
       .then((r) => r.json())
-      .then((data: User[]) => {
-        setUsers(data);
-        const saved = localStorage.getItem("currentUserId");
-        setRequesterId(saved && data.some((u) => u.id === saved) ? saved : data[0]?.id ?? "");
-      });
+      .then((data: User[]) => setUsers(data));
+    fetch("/api/auth/me")
+      .then((r) => (r.ok ? r.json() : null))
+      .then(setMe);
   }, []);
 
   const addApprover = (id: string) => {
@@ -41,11 +40,11 @@ export default function NewDocument() {
     const res = await fetch("/api/documents", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title, type, content, requesterId, approverIds }),
+      body: JSON.stringify({ title, type, content, approverIds }),
     });
     setSubmitting(false);
     if (res.ok) {
-      router.push("/");
+      router.push("/approval");
     } else {
       const err = await res.json();
       alert(err.error ?? "기안 등록 중 오류가 발생했습니다.");
@@ -56,22 +55,14 @@ export default function NewDocument() {
 
   return (
     <div className="max-w-2xl mx-auto py-8 px-4">
-      <h1 className="text-lg font-medium mb-6">새 결재 문서 기안</h1>
+      <h1 className="text-lg font-medium mb-6 text-gray-800">새 결재 문서 기안</h1>
 
       <div className="bg-white border border-gray-200 rounded-xl p-6 flex flex-col gap-4">
         <div>
           <label className="text-xs text-gray-500 block mb-1">기안자</label>
-          <select
-            className="w-full border border-gray-300 rounded-md text-sm px-3 py-2"
-            value={requesterId}
-            onChange={(e) => setRequesterId(e.target.value)}
-          >
-            {users.map((u) => (
-              <option key={u.id} value={u.id}>
-                {u.name} ({u.role})
-              </option>
-            ))}
-          </select>
+          <div className="text-sm text-gray-700 bg-gray-50 border border-gray-200 rounded-md px-3 py-2">
+            {me ? `${me.name} (${me.role})` : "불러오는 중..."}
+          </div>
         </div>
 
         <div>
@@ -119,7 +110,7 @@ export default function NewDocument() {
           >
             <option value="">결재자 추가...</option>
             {users
-              .filter((u) => !approverIds.includes(u.id))
+              .filter((u) => u.id !== me?.id && !approverIds.includes(u.id))
               .map((u) => (
                 <option key={u.id} value={u.id}>
                   {u.name} ({u.role})
@@ -149,7 +140,7 @@ export default function NewDocument() {
           >
             {submitting ? "제출 중..." : "상신하기"}
           </button>
-          <button onClick={() => router.push("/")} className="text-sm text-gray-500 px-4 py-2">
+          <button onClick={() => router.push("/approval")} className="text-sm text-gray-500 px-4 py-2">
             취소
           </button>
         </div>
